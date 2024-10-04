@@ -1,0 +1,110 @@
+{
+  "insurance": {
+    "title": "Insurance Claims Processing",
+    "context": "Streamline your insurance claims process by extracting key information from accident reports, damage claims, and medical forms.",
+    "templates": [
+      {
+        "url": "img/car-accident-report.webp",
+        "description": "Sample Car Accident Report"
+      },
+      {
+        "url": "img/property-damage-claim-report.webp",
+        "description": "Sample Property Damage Claim Report"
+      },
+      {
+        "url": "img/medical-insurance-form.webp",
+        "description": "Sample Medical Insurance Form"
+      }
+    ]
+  },
+  "security": {
+    "title": "Security and Surveillance",
+    "context": "Enhance your security operations by automatically extracting data from CCTV footage, access logs, and incident reports.",
+    "templates": [
+      {
+        "url": "img/cctv-footage-analysis-report.webp",
+        "description": "Sample CCTV Footage Analysis Report"
+      },
+      {
+        "url": "img/access-control-log.webp",
+        "description": "Sample Access Control Log"
+      },
+      {
+        "url": "img/incident-report.webp",
+        "description": "Sample Incident Report"
+      }
+    ]
+  },
+  "financial": {
+    "title": "Financial Services",
+    "context": "Simplify financial document processing by extracting key data from bank statements, invoices, and tax returns.",
+    "templates": [
+      {
+        "url": "img/bank-statement.webp",
+        "description": "Sample Bank Statement"
+      },
+      {
+        "url": "img/invoice.webp",
+        "description": "Sample Invoice"
+      },
+      {
+        "url": "img/tax-return-report.webp",
+        "description": "Sample Tax Return Report"
+      }
+    ]
+  },
+  "invoice": {
+    "title": "Automated Document Processing",
+    "context": "Streamline your invoice processing by automatically extracting key information from various invoice formats.",
+    "templates": [
+      {
+        "url": "img/invoice-1.webp",
+        "description": "Sample Invoice Template 1"
+      },
+      {
+        "url": "img/invoice-2.webp",
+        "description": "Sample Invoice Template 2"
+      },
+      {
+        "url": "img/invoice-3.webp",
+        "description": "Sample Invoice Template 3"
+      }
+    ]
+  },
+  "identity": {
+    "title": "Identity Verification",
+    "context": "Enhance your identity verification process by automatically extracting and validating information from various ID documents.",
+    "templates": [
+      {
+        "url": "img/aadhar-card.webp",
+        "description": "Sample Aadhar Card"
+      },
+      {
+        "url": "img/sample-indian-passport-1.webp",
+        "description": "Sample Indian Passport"
+      },
+      {
+        "url": "img/sample-indian-passport-2.webp",
+        "description": "Sample ID Document"
+      }
+    ]
+  },
+  "brands": {
+    "title": "Brand Logo Detection",
+    "context": "Identify and analyze brand logos in images to track brand presence and marketing effectiveness.",
+    "templates": [
+      {
+        "url": "img/apple.webp",
+        "description": "Apple Logo"
+      },
+      {
+        "url": "img/starbucks.webp",
+        "description": "Starbucks Logo"
+      },
+      {
+        "url": "img/under-armour.webp",
+        "description": "Under Armour Logo"
+      }
+    ]
+  }
+}
