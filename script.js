@@ -1,15 +1,43 @@
+import { SSE } from "https://cdn.jsdelivr.net/npm/sse.js@2";
+import { parse } from "https://cdn.jsdelivr.net/npm/partial-json@0.1.7/+esm";
+import { html, render } from "https://cdn.jsdelivr.net/npm/lit-html@3/+esm";
+import { AsyncQueue } from "https://cdn.jsdelivr.net/npm/@ai-zen/async-queue@1.3.1/+esm";
+
 const industryCards = document.getElementById("industry-cards");
 const templatesAndUpload = document.querySelector(".templates-and-upload");
 const imageTemplates = document.getElementById("image-templates");
 const selectedIndustryTitle = document.getElementById("selected-industry");
 const uploadInput = document.getElementById("upload");
 const uploadBtn = document.getElementById("upload-btn");
-const loadingIndicator = document.querySelector(".loading");
 const resultTable = document.getElementById("result-table");
 const saveJsonBtn = document.getElementById("save-json-btn");
-const errorMessageDiv = document.getElementById("error-message");
+let data;
 
 const industries = await fetch("config.json").then((res) => res.json());
+
+const llmStream = (body) => {
+  const queue = new AsyncQueue();
+  Object.assign(body, { stream: true, stream_options: { include_usage: true } });
+  const source = new SSE("https://llmfoundry.straive.com/openai/v1/chat/completions", {
+    method: "POST",
+    withCredentials: true,
+    headers: { "Content-Type": "application/json" },
+    payload: JSON.stringify(body),
+    start: false,
+  });
+  let content = "";
+  let usage = null;
+  source.addEventListener("message", (event) => {
+    if (event.data == "[DONE]") return queue.done();
+    const message = JSON.parse(event.data);
+    const content_delta = message.choices?.[0]?.delta?.content;
+    if (content_delta) content += content_delta;
+    if (message.usage) usage = message.usage;
+    queue.push({ content, usage });
+  });
+  source.stream();
+  return queue;
+};
 
 // Generate industry cards
 Object.entries(industries).forEach(([industry, data]) => {
@@ -32,28 +60,34 @@ Object.entries(industries).forEach(([industry, data]) => {
 // Add click event listeners to explore buttons
 document.querySelectorAll(".explore-btn").forEach((button) => {
   button.addEventListener("click", (event) => {
-    const industry = event.target.closest(".card").getAttribute("data-industry");
-    showTemplates(industry);
+    const industry = event.target.closest(".card").dataset.industry;
+    selectedIndustryTitle.textContent = industries[industry].title;
+    render(
+      html`
+        ${industries[industry].templates.map(
+          (template) => html`
+            <div class="col-md-4 mb-3">
+              <div class="card h-100">
+                <img
+                  src="${template.url}"
+                  class="card-img-top template-image"
+                  style="cursor: pointer; object-fit: cover; height: 200px;"
+                  data-url="${template.url}"
+                />
+                <div class="card-body">
+                  <p class="card-text">${template.description}</p>
+                </div>
+              </div>
+            </div>
+          `
+        )}
+      `,
+      imageTemplates
+    );
+    templatesAndUpload.style.display = "block";
+    imageTemplates.scrollIntoView({ behavior: "smooth" });
   });
 });
-
-function showTemplates(industry) {
-  selectedIndustryTitle.textContent = industries[industry].title;
-  imageTemplates.innerHTML = industries[industry].templates
-    .map(
-      (template) => /* html */ `
-    <div class="col-md-4 mb-3">
-      <div class="card h-100">
-        <img src="${template.url}" class="card-img-top template-image" style="cursor: pointer; object-fit: cover; height: 200px;" data-url="${template.url}">
-        <div class="card-body">
-          <p class="card-text">${template.description}</p>
-        </div>
-      </div>
-    </div>`
-    )
-    .join("");
-  templatesAndUpload.style.display = "block";
-}
 
 // Move the event listener outside of showTemplates
 imageTemplates.addEventListener("click", async (event) => {
@@ -73,101 +107,65 @@ uploadBtn.addEventListener("click", async () => {
 });
 
 function processImageFile(file) {
-  loadingIndicator.style.display = "block";
   const reader = new FileReader();
   reader.onload = async () => await sendImageToLLM(reader.result.split(",")[1]);
   reader.readAsDataURL(file);
 }
 
 async function sendImageToLLM(base64Image) {
-  try {
-    const response = await fetch("https://llmfoundry.straive.com/openai/v1/chat/completions", {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content: "Extract information from this image and return it as a flat JSON object with values as scalars.",
-          },
-          {
-            role: "user",
-            content: [{ type: "image_url", image_url: { url: `data:image/png;base64,${base64Image}` } }],
-          },
-        ],
-      }),
-    });
-    const result = await response.json();
-    loadingIndicator.style.display = "none";
-    if (result.choices && result.choices[0] && result.choices[0].message) {
-      displayResult(result.choices[0].message.content);
-    } else {
-      displayError("Unexpected response format: " + JSON.stringify(result));
-    }
-  } catch (error) {
-    loadingIndicator.style.display = "none";
-    displayError("Error processing image: " + error.message);
+  const schemaDescription = document.getElementById("json-description").value.trim();
+  const body = {
+    model: "gpt-4o-mini",
+    response_format: { type: "json_object" },
+    messages: [
+      {
+        role: "system",
+        content: `Extract information from this image and return it as JSON.
+Values must be scalars.
+Even if you cannot process the image, try to get information from it.
+${schemaDescription ? `Use this stucture:\n${schemaDescription}` : ""}`,
+      },
+      {
+        role: "user",
+        content: [{ type: "image_url", image_url: { url: `data:image/png;base64,${base64Image}` } }],
+      },
+    ],
+  };
+  render(html`<div class="spinner-border" role="status"></div>`, resultTable);
+  resultTable.scrollIntoView({ behavior: "smooth" });
+  for await (const { content, usage } of llmStream(body)) {
+    if (!content) continue;
+    data = parse(content);
+    render(table(data), resultTable);
   }
+  saveJsonBtn.classList.remove("d-none");
 }
 
-function displayResult(content) {
-  errorMessageDiv.style.display = "none";
-  resultTable.innerHTML = "";
+saveJsonBtn.addEventListener("click", () => {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
+  a.download = "image-details.json";
+  a.click();
+  URL.revokeObjectURL(url);
+});
 
-  try {
-    let data = parseContent(content);
-    renderJsonTable(data, resultTable);
-    saveJsonBtn.style.display = "inline-block";
-    saveJsonBtn.onclick = () => {
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
-      a.download = "image-details.json";
-      a.click();
-      URL.revokeObjectURL(url);
-    };
-  } catch (error) {
-    console.error("Error displaying result:", error);
-    displayError(
-      `ERROR: ${error.message}<hr>RESPONSE: ${content}<hr>Please try uploading a different image or selecting another template.`
-    );
-  }
+function table(data) {
+  return html`
+    <table class="table table-bordered">
+      <tbody>
+        ${Array.isArray(data)
+          ? data.map(table)
+          : typeof data === "object" && data !== null
+          ? Object.entries(data).map(([k, v]) => row(k, v))
+          : data}
+      </tbody>
+    </table>
+  `;
 }
 
-function parseContent(content) {
-  try {
-    return JSON.parse(content);
-  } catch (jsonError) {
-    const jsonMatch = content.match(/```json\n([\s\S]*?)\n```/);
-    if (jsonMatch && jsonMatch[1]) {
-      return JSON.parse(jsonMatch[1]);
-    }
-    throw new Error("Unable to parse JSON from content");
-  }
-}
-
-function renderJsonTable(data, table) {
-  Object.entries(data).forEach(([key, value]) => {
-    const row = table.insertRow();
-    row.insertCell(0).textContent = key;
-
-    if (typeof value === "object" && value !== null) {
-      const nestedTable = document.createElement("table");
-      nestedTable.className = "table table-bordered table-sm";
-      renderJsonTable(value, nestedTable);
-      row.insertCell(1).appendChild(nestedTable);
-    } else {
-      row.insertCell(1).textContent = value;
-    }
-  });
-}
-
-function displayError(message) {
-  errorMessageDiv.innerHTML = message;
-  errorMessageDiv.style.display = "block";
-  resultTable.innerHTML = ""; // Clear any previous results
-  saveJsonBtn.style.display = "none"; // Hide the save button
-  // Scroll to the error message to ensure it's visible
-  errorMessageDiv.scrollIntoView({ behavior: "smooth", block: "center" });
-}
+const row = (key, value) => html`
+  <tr>
+    <td>${key}</td>
+    <td>${typeof value === "object" && value !== null ? table(value) : value}</td>
+  </tr>
+`;
