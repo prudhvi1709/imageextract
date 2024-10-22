@@ -2,6 +2,7 @@ import { SSE } from "https://cdn.jsdelivr.net/npm/sse.js@2";
 import { parse } from "https://cdn.jsdelivr.net/npm/partial-json@0.1.7/+esm";
 import { html, render } from "https://cdn.jsdelivr.net/npm/lit-html@3/+esm";
 import { AsyncQueue } from "https://cdn.jsdelivr.net/npm/@ai-zen/async-queue@1.3.1/+esm";
+import { asyncLLM } from "https://cdn.jsdelivr.net/npm/asyncllm@1";
 
 const industryCards = document.getElementById("industry-cards");
 const templatesAndUpload = document.querySelector(".templates-and-upload");
@@ -18,24 +19,25 @@ const industries = await fetch("config.json").then((res) => res.json());
 const llmStream = (body) => {
   const queue = new AsyncQueue();
   Object.assign(body, { stream: true, stream_options: { include_usage: true } });
-  const source = new SSE("https://llmfoundry.straive.com/openai/v1/chat/completions", {
-    method: "POST",
-    withCredentials: true,
-    headers: { "Content-Type": "application/json" },
-    payload: JSON.stringify(body),
-    start: false,
-  });
-  let content = "";
-  let usage = null;
-  source.addEventListener("message", (event) => {
-    if (event.data == "[DONE]") return queue.done();
-    const message = JSON.parse(event.data);
-    const content_delta = message.choices?.[0]?.delta?.content;
-    if (content_delta) content += content_delta;
-    if (message.usage) usage = message.usage;
-    queue.push({ content, usage });
-  });
-  source.stream();
+  (async () => {
+    try {
+      for await (const { content, usage } of asyncLLM(
+        "https://llmfoundry.straive.com/openai/v1/chat/completions",
+        {
+          method: "POST",
+          credentials : "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        }
+      )) {
+        if (content) queue.push({ content, usage });
+      }
+      queue.done();
+    } catch (error) {
+      console.error("Streaming error:", error);
+      queue.done(); 
+    }
+  })();
   return queue;
 };
 
