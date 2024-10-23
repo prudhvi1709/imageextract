@@ -1,7 +1,6 @@
 import { SSE } from "https://cdn.jsdelivr.net/npm/sse.js@2";
 import { parse } from "https://cdn.jsdelivr.net/npm/partial-json@0.1.7/+esm";
 import { html, render } from "https://cdn.jsdelivr.net/npm/lit-html@3/+esm";
-import { AsyncQueue } from "https://cdn.jsdelivr.net/npm/@ai-zen/async-queue@1.3.1/+esm";
 import { asyncLLM } from "https://cdn.jsdelivr.net/npm/asyncllm@1";
 
 const industryCards = document.getElementById("industry-cards");
