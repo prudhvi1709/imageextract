@@ -16,31 +16,23 @@ let data;
 
 const industries = await fetch("config.json").then((res) => res.json());
 
-const llmStream = (body) => {
-  const queue = new AsyncQueue();
+async function* llmStream(body) {
+  // Augment the body to enable streaming with usage tracking
   Object.assign(body, { stream: true, stream_options: { include_usage: true } });
-  (async () => {
-    try {
-      for await (const { content, usage } of asyncLLM(
-        "https://llmfoundry.straive.com/openai/v1/chat/completions",
-        {
-          method: "POST",
-          credentials : "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        }
-      )) {
-        if (content) queue.push({ content, usage });
-      }
-      queue.done();
-    } catch (error) {
-      console.error("Streaming error:", error);
-      queue.done(); 
+  const responseStream = asyncLLM(
+    "https://llmfoundry.straive.com/openai/v1/chat/completions",
+    {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
     }
-  })();
-  return queue;
-};
-
+  );
+  // Iterate over the streaming response and yield chunks
+  for await (const { content, usage } of responseStream) {
+    if (content) yield { content, usage };  // Yield content incrementally
+  }
+}
 // Generate industry cards
 Object.entries(industries).forEach(([industry, data]) => {
   industryCards.insertAdjacentHTML(
